@@ -24,11 +24,13 @@ public class ImageViewTouch extends ImageViewTouchBase {
 	protected int mDoubleTapDirection;
 	protected OnGestureListener mGestureListener;
 	protected OnScaleGestureListener mScaleListener;
+    protected OnDisplayMatrixChangedListener mOnDisplayMatrixChangedListener;
 	protected boolean mDoubleTapEnabled = true;
 	protected boolean mScaleEnabled = true;
 	protected boolean mScrollEnabled = true;
 	private OnImageViewTouchDoubleTapListener mDoubleTapListener;
 	private OnImageViewTouchSingleTapListener mSingleTapListener;
+
 
 	public ImageViewTouch(Context context) {
 		super(context);
@@ -209,7 +211,15 @@ public class ImageViewTouch extends ImageViewTouchBase {
 		return bitmapScrollRectDelta > SCROLL_DELTA_THRESHOLD;
 	}
 
-	public class GestureListener extends GestureDetector.SimpleOnGestureListener {
+    public OnDisplayMatrixChangedListener getScaleCustomListener() {
+        return mOnDisplayMatrixChangedListener;
+    }
+
+    public void setOnDisplayMatrixChangedListener(OnDisplayMatrixChangedListener onDisplayMatrixChangedListener) {
+        this.mOnDisplayMatrixChangedListener = onDisplayMatrixChangedListener;
+    }
+
+    public class GestureListener extends GestureDetector.SimpleOnGestureListener {
 
 		@Override
 		public boolean onSingleTapConfirmed(MotionEvent e) {
@@ -260,6 +270,9 @@ public class ImageViewTouch extends ImageViewTouchBase {
 			if (e1 == null || e2 == null) return false;
 			if (e1.getPointerCount() > 1 || e2.getPointerCount() > 1) return false;
 			if (mScaleDetector.isInProgress()) return false;
+            if(mOnDisplayMatrixChangedListener != null) {
+                mOnDisplayMatrixChangedListener.OnDisplayMatrixChanged(ImageViewTouch.this);
+            }
 			return ImageViewTouch.this.onScroll(e1, e2, distanceX, distanceY);
 		}
 
@@ -270,7 +283,9 @@ public class ImageViewTouch extends ImageViewTouchBase {
 			if (e1.getPointerCount() > 1 || e2.getPointerCount() > 1) return false;
 			if (mScaleDetector.isInProgress()) return false;
 			if (getScale() == 1f) return false;
-
+            if(mOnDisplayMatrixChangedListener != null) {
+                mOnDisplayMatrixChangedListener.OnDisplayMatrixChanged(ImageViewTouch.this);
+            }
 			return ImageViewTouch.this.onFling(e1, e2, velocityX, velocityY);
 		}
 
@@ -301,6 +316,9 @@ public class ImageViewTouch extends ImageViewTouchBase {
 					targetScale = Math.min(getMaxScale(), Math.max(targetScale, getMinScale() - 0.1f));
 					zoomTo(targetScale, detector.getFocusX(), detector.getFocusY());
 					mDoubleTapDirection = 1;
+                    if(mOnDisplayMatrixChangedListener != null) {
+                        mOnDisplayMatrixChangedListener.OnDisplayMatrixChanged(ImageViewTouch.this);
+                    }
 					invalidate();
 					return true;
 				}

@@ -2,18 +2,28 @@ package com.kelevra.navi;
 
 import com.kelevra.imagezoom.ImageViewTouch;
 import com.kelevra.imagezoom.ImageViewTouchBase;
+import com.kelevra.imagezoom.OnDisplayMatrixChangedListener;
+import com.kelevra.navi.util.ScreenUtils;
 import com.kelevra.navi.util.SystemUiHider;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.PathEffect;
+import android.graphics.PorterDuff;
+import android.graphics.drawable.BitmapDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.ImageView;
 
 
 /**
@@ -22,7 +32,8 @@ import android.view.View;
  *
  * @see SystemUiHider
  */
-public class FullscreenActivity extends Activity {
+public class FullscreenActivity extends Activity implements OnDisplayMatrixChangedListener {
+    private static final String TAG = FullscreenActivity.class.getName();
     /**
      * Whether or not the system UI should be auto-hidden after
      * {@link #AUTO_HIDE_DELAY_MILLIS} milliseconds.
@@ -50,17 +61,23 @@ public class FullscreenActivity extends Activity {
      * The instance of the {@link SystemUiHider} for this activity.
      */
     private SystemUiHider mSystemUiHider;
+    private ImageView ivOverlay;
+    private ImageViewTouch ivtMap;
+    private Bitmap overlayBitmap;
+    private Canvas canvas;
+    Matrix prevDisplayMatrix;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_fullscreen);
 
-        ImageViewTouch ivtMap = (ImageViewTouch) findViewById(R.id.ivtMap);
+        ivOverlay = (ImageView) findViewById(R.id.ivOverlay);
+        ivtMap = (ImageViewTouch) findViewById(R.id.ivtMap);
         ivtMap.setDisplayType(ImageViewTouchBase.DisplayType.FIT_IF_BIGGER);
         Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.screen);
-        Matrix matrix = ivtMap.getDisplayMatrix();
         ivtMap.setImageBitmap(bitmap, null, -1f, 8f);
+        ivtMap.setOnDisplayMatrixChangedListener(this);
 
         final View controlsView = findViewById(R.id.fullscreen_content_controls);
 
@@ -107,9 +124,9 @@ public class FullscreenActivity extends Activity {
                 });
 
         // Set up the user interaction to manually show or hide the system UI.
-        ivtMap.setOnClickListener(new View.OnClickListener() {
+        ivtMap.setDoubleTapListener(new ImageViewTouch.OnImageViewTouchDoubleTapListener() {
             @Override
-            public void onClick(View view) {
+            public void onDoubleTap() {
                 if (TOGGLE_ON_CLICK) {
                     mSystemUiHider.toggle();
                 } else {
@@ -172,5 +189,36 @@ public class FullscreenActivity extends Activity {
         mHideHandler.postDelayed(mHideRunnable, delayMillis);
     }
 
+    @Override
+    public void OnDisplayMatrixChanged(final ImageViewTouch view) {
+        ivOverlay.post(new Runnable() {
+            @Override
+            public void run() {
+                Matrix newDisplayMatrix = ivtMap.getDisplayMatrix();
+                if(prevDisplayMatrix == null || !prevDisplayMatrix.equals(newDisplayMatrix)) {
+                    prevDisplayMatrix = new Matrix(newDisplayMatrix);
+                    Log.d(TAG, "newDisplayMatrix = " + newDisplayMatrix.toShortString());
+                    if (canvas == null) {
+                        overlayBitmap = Bitmap.createBitmap(view.getWidth()/2, view.getHeight()/2, Bitmap.Config.ARGB_4444);
+                        canvas = new Canvas(overlayBitmap);
+                    }
+                    canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
 
+                    Paint paint = new Paint();
+                    paint.setColor(Color.RED);
+                    paint.setStrokeWidth(10);
+                    paint.setStyle(Paint.Style.FILL_AND_STROKE);
+                    int radius = ScreenUtils.convertToPx(FullscreenActivity.this, 24);
+                    canvas.drawCircle(canvas.getWidth() / 2, canvas.getHeight() / 2, radius, paint);
+                    float[] values = new float[9];
+                    newDisplayMatrix.getValues(values);
+                    values[Matrix.MTRANS_X] /= 2;
+                    values[Matrix.MTRANS_Y] /= 2;
+                    newDisplayMatrix.setValues(values);
+                    canvas.setMatrix(new Matrix(newDisplayMatrix));
+                    ivOverlay.setImageDrawable(new BitmapDrawable(getResources(), overlayBitmap));
+                }
+            }
+        });
+    }
 }
