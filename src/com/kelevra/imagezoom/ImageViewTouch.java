@@ -2,6 +2,7 @@ package com.kelevra.imagezoom;
 
 import android.content.Context;
 import android.graphics.Matrix;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
@@ -24,7 +25,7 @@ public class ImageViewTouch extends ImageViewTouchBase {
 	protected int mDoubleTapDirection;
 	protected OnGestureListener mGestureListener;
 	protected OnScaleGestureListener mScaleListener;
-    protected OnDisplayMatrixChangedListener mOnDisplayMatrixChangedListener;
+    private OnLongPressListener onLongPressListener;
 	protected boolean mDoubleTapEnabled = true;
 	protected boolean mScaleEnabled = true;
 	protected boolean mScrollEnabled = true;
@@ -211,12 +212,12 @@ public class ImageViewTouch extends ImageViewTouchBase {
 		return bitmapScrollRectDelta > SCROLL_DELTA_THRESHOLD;
 	}
 
-    public OnDisplayMatrixChangedListener getScaleCustomListener() {
-        return mOnDisplayMatrixChangedListener;
+    public OnLongPressListener getOnLongPressListener() {
+        return onLongPressListener;
     }
 
-    public void setOnDisplayMatrixChangedListener(OnDisplayMatrixChangedListener onDisplayMatrixChangedListener) {
-        this.mOnDisplayMatrixChangedListener = onDisplayMatrixChangedListener;
+    public void setOnLongPressListener(OnLongPressListener onLongPressListener) {
+        this.onLongPressListener = onLongPressListener;
     }
 
     public class GestureListener extends GestureDetector.SimpleOnGestureListener {
@@ -259,6 +260,7 @@ public class ImageViewTouch extends ImageViewTouchBase {
 				if (! mScaleDetector.isInProgress()) {
 					setPressed(true);
 					performLongClick();
+                    onLongPressListener.onLongPress(ImageViewTouch.this, new PointF(e.getX(), e.getY()));
 				}
 			}
 		}
@@ -270,9 +272,6 @@ public class ImageViewTouch extends ImageViewTouchBase {
 			if (e1 == null || e2 == null) return false;
 			if (e1.getPointerCount() > 1 || e2.getPointerCount() > 1) return false;
 			if (mScaleDetector.isInProgress()) return false;
-            if(mOnDisplayMatrixChangedListener != null) {
-                mOnDisplayMatrixChangedListener.OnDisplayMatrixChanged(ImageViewTouch.this);
-            }
 			return ImageViewTouch.this.onScroll(e1, e2, distanceX, distanceY);
 		}
 
@@ -283,9 +282,6 @@ public class ImageViewTouch extends ImageViewTouchBase {
 			if (e1.getPointerCount() > 1 || e2.getPointerCount() > 1) return false;
 			if (mScaleDetector.isInProgress()) return false;
 			if (getScale() == 1f) return false;
-            if(mOnDisplayMatrixChangedListener != null) {
-                mOnDisplayMatrixChangedListener.OnDisplayMatrixChanged(ImageViewTouch.this);
-            }
 			return ImageViewTouch.this.onFling(e1, e2, velocityX, velocityY);
 		}
 
@@ -316,9 +312,6 @@ public class ImageViewTouch extends ImageViewTouchBase {
 					targetScale = Math.min(getMaxScale(), Math.max(targetScale, getMinScale() - 0.1f));
 					zoomTo(targetScale, detector.getFocusX(), detector.getFocusY());
 					mDoubleTapDirection = 1;
-                    if(mOnDisplayMatrixChangedListener != null) {
-                        mOnDisplayMatrixChangedListener.OnDisplayMatrixChanged(ImageViewTouch.this);
-                    }
 					invalidate();
 					return true;
 				}

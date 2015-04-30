@@ -1,8 +1,10 @@
 package com.kelevra.navi;
 
+import com.google.android.gms.maps.model.LatLng;
 import com.kelevra.imagezoom.ImageViewTouch;
 import com.kelevra.imagezoom.ImageViewTouchBase;
 import com.kelevra.imagezoom.OnDisplayMatrixChangedListener;
+import com.kelevra.imagezoom.OnLongPressListener;
 import com.kelevra.navi.util.ScreenUtils;
 import com.kelevra.navi.util.SystemUiHider;
 
@@ -15,8 +17,10 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PathEffect;
+import android.graphics.PointF;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.BitmapDrawable;
+import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -24,6 +28,7 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 
 /**
@@ -32,7 +37,7 @@ import android.widget.ImageView;
  *
  * @see SystemUiHider
  */
-public class FullscreenActivity extends Activity implements OnDisplayMatrixChangedListener {
+public class FullscreenActivity extends Activity implements OnDisplayMatrixChangedListener, OnLongPressListener {
     private static final String TAG = FullscreenActivity.class.getName();
     /**
      * Whether or not the system UI should be auto-hidden after
@@ -57,6 +62,7 @@ public class FullscreenActivity extends Activity implements OnDisplayMatrixChang
      */
     private static final int HIDER_FLAGS = SystemUiHider.FLAG_HIDE_NAVIGATION;
 
+
     /**
      * The instance of the {@link SystemUiHider} for this activity.
      */
@@ -65,7 +71,15 @@ public class FullscreenActivity extends Activity implements OnDisplayMatrixChang
     private ImageViewTouch ivtMap;
     private Bitmap overlayBitmap;
     private Canvas canvas;
-    Matrix prevDisplayMatrix;
+    private Matrix prevDisplayMatrix;
+    private LatLng minLatLng;
+    private LatLng maxLatLng;
+    private LatLng currentLatLng;
+    private Paint bigCirclePaint;
+    private int bigCircleRadius;
+    private Paint smallCirclePaint;
+    private int smallCircleRadius;
+    private Matrix transformationMatrix;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -78,6 +92,20 @@ public class FullscreenActivity extends Activity implements OnDisplayMatrixChang
         Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.screen);
         ivtMap.setImageBitmap(bitmap, null, -1f, 8f);
         ivtMap.setOnDisplayMatrixChangedListener(this);
+        ivtMap.setLongClickable(true);
+        ivtMap.setOnLongPressListener(this);
+
+        minLatLng = new LatLng(35.5, 55.2);
+        maxLatLng = new LatLng(35.7, 55.3);
+        currentLatLng = new LatLng(35.55, 55.25);
+        calculateTransformationMatrix();
+        initBigCirclePaint();
+        initSmallCirclePaint();
+        getLatLngToScreenProjection(minLatLng);
+        getLatLngToScreenProjection(maxLatLng);
+        getLatLngToScreenProjection(currentLatLng);
+
+        now render it!
 
         final View controlsView = findViewById(R.id.fullscreen_content_controls);
 
@@ -190,7 +218,7 @@ public class FullscreenActivity extends Activity implements OnDisplayMatrixChang
     }
 
     @Override
-    public void OnDisplayMatrixChanged(final ImageViewTouch view) {
+    public void onDisplayMatrixChanged(final ImageViewTouchBase view) {
         ivOverlay.post(new Runnable() {
             @Override
             public void run() {
@@ -203,13 +231,8 @@ public class FullscreenActivity extends Activity implements OnDisplayMatrixChang
                         canvas = new Canvas(overlayBitmap);
                     }
                     canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+                    canvas.drawCircle(canvas.getWidth() / 2, canvas.getHeight() / 2, bigCircleRadius, bigCirclePaint);
 
-                    Paint paint = new Paint();
-                    paint.setColor(Color.RED);
-                    paint.setStrokeWidth(10);
-                    paint.setStyle(Paint.Style.FILL_AND_STROKE);
-                    int radius = ScreenUtils.convertToPx(FullscreenActivity.this, 24);
-                    canvas.drawCircle(canvas.getWidth() / 2, canvas.getHeight() / 2, radius, paint);
                     float[] values = new float[9];
                     newDisplayMatrix.getValues(values);
                     values[Matrix.MTRANS_X] /= 2;
@@ -220,5 +243,61 @@ public class FullscreenActivity extends Activity implements OnDisplayMatrixChang
                 }
             }
         });
+    }
+
+    private void initBigCirclePaint() {
+        bigCircleRadius = ScreenUtils.convertToPx(FullscreenActivity.this, 24);
+        bigCirclePaint = new Paint();
+        bigCirclePaint.setColor(Color.RED);
+        bigCirclePaint.setStrokeWidth(10);
+        bigCirclePaint.setStyle(Paint.Style.FILL_AND_STROKE);
+    }
+
+    private void initSmallCirclePaint() {
+        smallCircleRadius = ScreenUtils.convertToPx(FullscreenActivity.this, 4);
+        smallCirclePaint = new Paint();
+        smallCirclePaint.setColor(Color.BLUE);
+        smallCirclePaint.setStrokeWidth(10);
+        smallCirclePaint.setStyle(Paint.Style.FILL_AND_STROKE);
+    }
+
+    @Override
+    public void onLongPress(ImageViewTouchBase view, PointF position) {
+        Toast.makeText(this, "position = " + position, Toast.LENGTH_SHORT).show();
+
+
+
+        //ok now calculate matrix projection
+    }
+
+    private void calculateTransformationMatrix() {
+        double screenWidth = ScreenUtils.getScreenSize(this)[0];
+        double screenHeight = ScreenUtils.getScreenSize(this)[1];
+        double mapWidth = maxLatLng.latitude - minLatLng.latitude;
+        double mapHeight = maxLatLng.longitude - minLatLng.longitude;
+        double screenAspectRatio = screenWidth/screenHeight;
+        double mapAspectRatio = mapWidth/mapHeight;
+        boolean shouldFitWidth = screenAspectRatio <= mapAspectRatio;
+        float scaleValue = 0;
+        if(shouldFitWidth) {
+            scaleValue = (float) (screenWidth/mapWidth);
+        } else {
+            scaleValue = (float) (screenHeight/mapHeight);
+        }
+        float translateXValue = (float) (-scaleValue*minLatLng.latitude);
+        float translateYValue = (float) (-scaleValue*minLatLng.longitude);
+
+        transformationMatrix = new Matrix();
+        transformationMatrix.setValues(new float[]{scaleValue, 0, translateXValue, 0, scaleValue, translateYValue, 0, 0, 1});
+        Log.d(TAG, "transformationMatrix = " + transformationMatrix.toShortString());
+    }
+
+    private PointF getLatLngToScreenProjection(LatLng latLng) {
+        Matrix latLngMatrix = new Matrix();
+        latLngMatrix.setValues(new float[]{(float) latLng.latitude, 0, 0, (float) latLng.longitude, 0, 0, 1, 0, 0});
+        Matrix product = new Matrix();
+        product.setConcat(transformationMatrix, latLngMatrix);
+        Log.d(TAG, "product = " + product.toShortString());
+        return new PointF();
     }
 }

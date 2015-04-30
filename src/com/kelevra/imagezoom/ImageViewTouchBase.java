@@ -27,6 +27,8 @@ public abstract class ImageViewTouchBase extends ImageView implements IDisposabl
 
 	public static final String VERSION = "1.0.5-SNAPSHOT";
 
+    protected OnDisplayMatrixChangedListener mOnDisplayMatrixChangedListener;
+
 	public interface OnDrawableChangeListener {
 
 		/**
@@ -36,9 +38,7 @@ public abstract class ImageViewTouchBase extends ImageView implements IDisposabl
 		 * @param drawable
 		 */
 		void onDrawableChanged(Drawable drawable);
-	}
-
-	;
+	};
 
 	public interface OnLayoutChangeListener {
 		/**
@@ -51,9 +51,7 @@ public abstract class ImageViewTouchBase extends ImageView implements IDisposabl
 		 * @param bottom
 		 */
 		void onLayoutChanged(boolean changed, int left, int top, int right, int bottom);
-	}
-
-	;
+	};
 
 	/**
 	 * Use this to change the {@link ImageViewTouchBase#setDisplayType(DisplayType)} of
@@ -68,9 +66,7 @@ public abstract class ImageViewTouchBase extends ImageView implements IDisposabl
 		FIT_TO_SCREEN,
 		/** Image will be scaled only if bigger than the bounds of this view */
 		FIT_IF_BIGGER
-	}
-
-	;
+	};
 
 
 	public static final String LOG_TAG = "ImageViewTouchBase";
@@ -914,6 +910,9 @@ public abstract class ImageViewTouchBase extends ImageView implements IDisposabl
 		postScale(deltaScale, centerX, centerY);
 		onZoom(getScale());
 		center(true, true);
+        if(mOnDisplayMatrixChangedListener != null) {
+            mOnDisplayMatrixChangedListener.onDisplayMatrixChanged(ImageViewTouchBase.this);
+        }
 	}
 
 	protected void onZoom(float scale) {}
@@ -936,6 +935,9 @@ public abstract class ImageViewTouchBase extends ImageView implements IDisposabl
 		updateRect(rect, mScrollRect);
 		postTranslate(mScrollRect.left, mScrollRect.top);
 		center(true, true);
+        if(mOnDisplayMatrixChangedListener != null) {
+            mOnDisplayMatrixChangedListener.onDisplayMatrixChanged(ImageViewTouchBase.this);
+        }
 	}
 
 	protected void updateRect(RectF bitmapRect, RectF scrollRect) {
@@ -1015,6 +1017,14 @@ public abstract class ImageViewTouchBase extends ImageView implements IDisposabl
 			}
 		);
 	}
+
+    public OnDisplayMatrixChangedListener getScaleCustomListener() {
+        return mOnDisplayMatrixChangedListener;
+    }
+
+    public void setOnDisplayMatrixChangedListener(OnDisplayMatrixChangedListener onDisplayMatrixChangedListener) {
+        this.mOnDisplayMatrixChangedListener = onDisplayMatrixChangedListener;
+    }
 
 	@Override
 	public void dispose() {
