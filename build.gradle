@@ -63,4 +63,5 @@ dependencies {
     compile 'com.android.support:support-v4:22.+'
     compile 'it.sephiroth.android.library.easing:android-easing:1.0.3'
     compile 'com.google.android.gms:play-services:+'
+    compile 'se.emilsjolander:stickylistheaders:+'
 }
